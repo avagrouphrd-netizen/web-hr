@@ -179,10 +179,30 @@ export async function PUT(
       return NextResponse.json({ message: result.error }, { status: 400 });
     }
 
+    const personalFields = [
+      "gender",
+      "birthPlace",
+      "birthDate",
+      "nik",
+      "religion",
+      "addressKtp",
+      "addressCurrent",
+      "phoneNumber",
+      "bank",
+      "accountNumber",
+      "ktpPhoto",
+    ] as const;
+
+    const merged = { ...result.payload };
+    for (const field of personalFields) {
+      if (!(field in body)) {
+        (merged as Record<string, unknown>)[field] = current[field];
+      }
+    }
+
     const employee = await updateEmployee(id, {
-      ...result.payload,
+      ...merged,
       email: current.email,
-      ktpPhoto: result.payload.ktpPhoto ?? current.ktpPhoto,
     });
 
     return NextResponse.json({
