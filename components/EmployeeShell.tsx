@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import LogoutButton from "@/components/LogoutButton";
+import { isSalesFieldRole } from "@/lib/sales-roles";
 
 type Props = {
   title: string;
@@ -10,6 +11,7 @@ type Props = {
   employeeName: string;
   employeeMeta: string;
   currentPath: string;
+  employeeRole?: string | null;
   children: React.ReactNode;
 };
 
@@ -26,7 +28,7 @@ type MenuItem = {
   children?: SubMenuItem[];
 };
 
-const menuItems: MenuItem[] = [
+const baseMenuItems: MenuItem[] = [
   { label: "Dashboard", href: "/employee", description: "Ringkasan akun karyawan" },
   { label: "Profil Pribadi", href: "/employee/profile", description: "Lengkapi data diri Anda" },
   {
@@ -38,11 +40,32 @@ const menuItems: MenuItem[] = [
     ],
   },
   { label: "Riwayat Absensi", href: "/employee/attendance-history", description: "Rekap kehadiran pribadi" },
+  { label: "Perjalanan Dinas", href: "/employee/business-trips", description: "Pengajuan dinas luar kota" },
   { label: "Data Lembur", href: "/employee/overtime", description: "Pengajuan dan status lembur" },
   { label: "Status Pinjaman", href: "/employee/loans", description: "Sisa pinjaman dan cicilan" },
   { label: "Informasi Kontrak", href: "/employee/contract", description: "Kontrak dan potongan kerja" },
   { label: "Slip Gaji", href: "/employee/payslips", description: "Daftar slip gaji pribadi" },
+  { label: "Pengajuan Reimburse", href: "/employee/reimbursements", description: "Upload nota reimbursement" },
 ];
+
+const visitReportMenu: MenuItem = {
+  label: "Laporan Kunjungan",
+  href: "/employee/visit-report",
+  description: "Submit kunjungan toko / customer",
+};
+
+function buildMenuItems(role: string | null | undefined): MenuItem[] {
+  if (!isSalesFieldRole(role)) return baseMenuItems;
+  const insertAfter = "Riwayat Absensi";
+  const result: MenuItem[] = [];
+  for (const item of baseMenuItems) {
+    result.push(item);
+    if (item.label === insertAfter) {
+      result.push(visitReportMenu);
+    }
+  }
+  return result;
+}
 
 function MenuIcon({ active }: { active?: boolean }) {
   return (
@@ -128,8 +151,10 @@ export default function EmployeeShell({
   employeeName,
   employeeMeta,
   currentPath,
+  employeeRole,
   children,
 }: Props) {
+  const menuItems = buildMenuItems(employeeRole);
   const initiallyOpen = menuItems.reduce<Record<string, boolean>>((acc, item) => {
     if (item.children) {
       acc[item.label] = item.children.some((sub) => sub.href === currentPath);

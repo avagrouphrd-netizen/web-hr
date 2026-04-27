@@ -3,10 +3,14 @@ import { RowDataPacket } from "mysql2";
 import { pool } from "@/lib/db";
 import { getCurrentEmployeeSession } from "@/lib/auth";
 import {
-  getCheckInLateMinutes,
+  detectTokoGudangShift,
+  ensureAttendanceShiftSupport,
   getJakartaDate,
   getJakartaDateTime,
+  getShiftLateMinutes,
+  isTokoGudangPlacement,
   saveAttendancePhoto,
+  type AttendanceShift,
 } from "@/lib/attendance";
 import { saveUploadedFile } from "@/lib/uploads";
 import { checkGeofence, MAX_GEOFENCE_RADIUS_METERS } from "@/lib/geofence";
@@ -14,6 +18,7 @@ import { checkGeofence, MAX_GEOFENCE_RADIUS_METERS } from "@/lib/geofence";
 type EmployeeRow = RowDataPacket & {
   id: number;
   penempatan: string | null;
+  penempatan_extra: string | null;
 };
 
 type AttendanceRow = RowDataPacket & {
@@ -31,6 +36,8 @@ type AttendanceRequestStatus =
 
 export async function POST(request: Request) {
   try {
+    await ensureAttendanceShiftSupport();
+
     const session = await getCurrentEmployeeSession();
 
     if (!session) {
@@ -89,7 +96,7 @@ export async function POST(request: Request) {
     }
 
     const [employeeRows] = await pool.query<EmployeeRow[]>(
-      "SELECT id, penempatan FROM karyawan WHERE user_id = ? LIMIT 1",
+      "SELECT id, penempatan, penempatan_extra FROM karyawan WHERE user_id = ? LIMIT 1",
       [session.userId],
     );
 
@@ -99,8 +106,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Data karyawan tidak ditemukan." }, { status: 404 });
     }
 
+    const allPlacements = [
+      employee.penempatan,
+      ...(employee.penempatan_extra ? employee.penempatan_extra.split(",").map((s) => s.trim()) : []),
+    ].filter(Boolean) as string[];
+
     if (requiresSelfie) {
-      const geofence = checkGeofence(employee.penempatan, latitude, longitude);
+      const geofence = checkGeofence(allPlacements, latitude, longitude);
       if (!geofence.valid) {
         return NextResponse.json(
           {
@@ -146,7 +158,15 @@ export async function POST(request: Request) {
       : requiresSickProof
         ? await saveUploadedFile(sickProof as File, "attendance")
         : null;
-    const lateMinutes = requiresSelfie ? getCheckInLateMinutes(currentTime) : 0;
+    const detectedPlacement = requiresSelfie
+      ? (checkGeofence(allPlacements, latitude, longitude).placement ?? employee.penempatan)
+      : employee.penempatan;
+    const detectedShift: AttendanceShift | null = requiresSelfie && isTokoGudangPlacement(detectedPlacement)
+      ? detectTokoGudangShift(currentTime)
+      : null;
+    const lateMinutes = requiresSelfie
+      ? getShiftLateMinutes(currentTime, detectedShift ?? "pagi")
+      : 0;
     const attendanceStatus =
       attendanceRequestStatus === "izin"
         ? "izin"
@@ -178,6 +198,7 @@ export async function POST(request: Request) {
           jam_masuk,
           status_absensi,
           kode_absensi,
+          shift,
           foto_masuk,
           latitude_masuk,
           longitude_masuk,
@@ -185,7 +206,7 @@ export async function POST(request: Request) {
           setengah_hari,
           lembur_jam,
           keterangan
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
       `,
       [
         employee.id,
@@ -193,6 +214,7 @@ export async function POST(request: Request) {
         attendanceTime,
         attendanceStatus,
         attendanceCode,
+        detectedShift,
         photoPath,
         attendanceLatitude,
         attendanceLongitude,

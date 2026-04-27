@@ -6,7 +6,9 @@ import {
   listPayrollEmployeeOptions,
   listPayrollPeriods,
 } from "@/lib/payroll-admin";
-import { getAdminPayrollSummarySheet } from "@/lib/payroll-summary";
+import { getAdminPayrollSummarySheet, type AdminPayrollSummarySheet } from "@/lib/payroll-summary";
+import { isSalesNasionalRole } from "@/lib/sales-roles";
+import { isPenjahitRole } from "@/lib/penjahit-roles";
 
 function parsePositiveInt(value: string | string[] | undefined) {
   if (typeof value !== "string") {
@@ -15,6 +17,26 @@ function parsePositiveInt(value: string | string[] | undefined) {
 
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function excludeSalesNasionalSheet(sheet: AdminPayrollSummarySheet | null) {
+  if (!sheet) {
+    return null;
+  }
+
+  const rows = sheet.rows
+    .filter((row) => !isSalesNasionalRole(row.role) && !isPenjahitRole(row.role))
+    .map((row, index) => ({ ...row, number: index + 1 }));
+
+  return {
+    ...sheet,
+    rows,
+    totalNetIncome: rows.reduce((total, row) => total + row.netIncome, 0),
+    totalDeduction: rows.reduce(
+      (total, row) => total + row.fineDeduction + row.contractCut + row.loanCut,
+      0,
+    ),
+  };
 }
 
 export default async function AdminPayrollSummaryPage({
@@ -47,8 +69,8 @@ export default async function AdminPayrollSummaryPage({
       currentPath="/admin/payroll-summary"
     >
       <AdminPayrollSummaryManager
-        sheet={sheet}
-        employeeOptions={employeeOptions}
+        sheet={excludeSalesNasionalSheet(sheet)}
+        employeeOptions={employeeOptions.filter((employee) => !isSalesNasionalRole(employee.role) && !isPenjahitRole(employee.role))}
         omzetPeriod={omzetPeriod}
         periodOptions={periodOptions}
       />

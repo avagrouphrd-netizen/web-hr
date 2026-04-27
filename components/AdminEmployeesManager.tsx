@@ -38,7 +38,7 @@ type FormState = {
   department: string;
   division: string;
   subDivision: string;
-  placement: string;
+  placements: string[];
   costAllocation: string;
   employmentStatus: "training" | "tetap" | "kontrak" | "freelance";
   dataStatus: "aktif" | "nonaktif";
@@ -47,6 +47,7 @@ type FormState = {
   contractEndDate: string;
   annualRaise: string;
   userActive: boolean;
+  penjahitPayrollType: "mingguan" | "bulanan" | "";
 };
 
 const emptyForm: FormState = {
@@ -57,7 +58,7 @@ const emptyForm: FormState = {
   department: "",
   division: "",
   subDivision: "",
-  placement: "",
+  placements: [""],
   costAllocation: "",
   employmentStatus: "kontrak",
   dataStatus: "aktif",
@@ -66,6 +67,7 @@ const emptyForm: FormState = {
   contractEndDate: "",
   annualRaise: "0",
   userActive: true,
+  penjahitPayrollType: "",
 };
 
 const inputClassName =
@@ -176,7 +178,7 @@ function toFormState(employee: EmployeeListItem): FormState {
     department: employee.department ?? "",
     division: employee.division ?? "",
     subDivision: employee.subDivision ?? "",
-    placement: employee.placement ?? "",
+    placements: [employee.placement ?? "", ...employee.extraPlacements],
     costAllocation: employee.costAllocation ?? "",
     employmentStatus: employee.employmentStatus,
     dataStatus: employee.dataStatus,
@@ -185,6 +187,7 @@ function toFormState(employee: EmployeeListItem): FormState {
     contractEndDate: employee.contractEndDate ?? "",
     annualRaise: employee.annualRaise.replace(/\./g, "").replace(",", "."),
     userActive: employee.userActive,
+    penjahitPayrollType: employee.penjahitPayrollType ?? "",
   };
 }
 
@@ -224,6 +227,7 @@ export default function AdminEmployeesManager({ initialEmployees, lookups, stats
   }, [employees, search]);
 
   const timelinePreview = form.firstJoinDate ? calculateEmploymentTimeline(form.firstJoinDate) : null;
+  const isTetap = form.employmentStatus === "tetap";
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => {
@@ -276,7 +280,8 @@ export default function AdminEmployeesManager({ initialEmployees, lookups, stats
         department: form.department,
         division: form.division,
         subDivision: form.subDivision,
-        placement: form.placement,
+        placement: form.placements[0] ?? "",
+        extraPlacements: form.placements.slice(1).filter(Boolean),
         costAllocation: form.costAllocation,
         employmentStatus: form.employmentStatus,
         workStatus: form.employmentStatus,
@@ -286,6 +291,7 @@ export default function AdminEmployeesManager({ initialEmployees, lookups, stats
         contractEndDate: form.contractEndDate,
         annualRaise: Number(sanitizeCurrencyInput(form.annualRaise) || 0),
         userActive: form.userActive,
+        penjahitPayrollType: form.penjahitPayrollType || null,
       };
 
       const response = await fetch(editingId ? `/api/admin/employees/${editingId}` : "/api/admin/employees", {
@@ -353,6 +359,9 @@ export default function AdminEmployeesManager({ initialEmployees, lookups, stats
       { label: "Status Kepegawaian", value: formatStatus(viewingEmployee.employmentStatus) || "-" },
       { label: "Status Data", value: viewingEmployee.dataStatus || "-" },
       { label: "Akun", value: viewingEmployee.userActive ? "Aktif" : "Nonaktif" },
+      ...(viewingEmployee.role?.toLowerCase() === "penjahit" && viewingEmployee.penjahitPayrollType
+        ? [{ label: "Tipe Payroll Penjahit", value: viewingEmployee.penjahitPayrollType === "mingguan" ? "Mingguan (tgl 1, 8, 16, 25)" : "Bulanan (tgl 25)" }]
+        : []),
     ]
     : [];
   const financeEntries: Array<{ label: string; value: string }> = viewingEmployee
@@ -447,13 +456,67 @@ export default function AdminEmployeesManager({ initialEmployees, lookups, stats
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Field label="Jabatan"><select value={form.role} onChange={(event) => updateField("role", event.target.value)} className={selectClassName}><option value="">Pilih jabatan</option>{lookups.roles.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
+              <Field label="Jabatan"><select value={form.role} onChange={(event) => { updateField("role", event.target.value); if (event.target.value.toLowerCase() !== "penjahit") { updateField("penjahitPayrollType", ""); } }} className={selectClassName}><option value="">Pilih jabatan</option>{lookups.roles.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
               <Field label="Departemen"><select value={form.department} onChange={(event) => updateField("department", event.target.value)} className={selectClassName}><option value="">Pilih departemen</option>{lookups.departments.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
               <Field label="Divisi"><select value={form.division} onChange={(event) => updateField("division", event.target.value)} className={selectClassName}><option value="">Pilih divisi</option>{lookups.divisions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
               <Field label="Sub Divisi"><select value={form.subDivision} onChange={(event) => updateField("subDivision", event.target.value)} className={selectClassName}><option value="">Pilih sub divisi</option>{lookups.subDivisions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
-              <Field label="Penempatan"><select value={form.placement} onChange={(event) => updateField("placement", event.target.value)} className={selectClassName}><option value="">Pilih penempatan</option>{lookups.placements.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
+              <div className="space-y-2">
+                <span className="block text-sm font-medium text-[#4a3430]">Penempatan</span>
+                {form.placements.map((p, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <select
+                      value={p}
+                      onChange={(event) => {
+                        const next = [...form.placements];
+                        next[idx] = event.target.value;
+                        updateField("placements", next);
+                      }}
+                      className={selectClassName + " flex-1"}
+                    >
+                      <option value="">Pilih penempatan</option>
+                      {lookups.placements.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => updateField("placements", form.placements.filter((_, i) => i !== idx))}
+                        className="h-12 w-12 flex-shrink-0 rounded-2xl border border-[#f1d0c9] bg-white text-[#b94040] hover:bg-[#fff2f0] text-lg leading-none"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {form.placements.length < lookups.placements.length && (
+                  <button
+                    type="button"
+                    onClick={() => updateField("placements", [...form.placements, ""])}
+                    className="h-9 rounded-xl border border-[#ead7ce] bg-white px-4 text-xs font-semibold text-[#8f1d22] hover:bg-[#fff5f2]"
+                  >
+                    + Tambah Penempatan
+                  </button>
+                )}
+              </div>
               <Field label="Pembebanan"><select value={form.costAllocation} onChange={(event) => updateField("costAllocation", event.target.value)} className={selectClassName}><option value="">Pilih pembebanan</option>{lookups.costAllocations.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></Field>
             </div>
+
+            {form.role.toLowerCase() === "penjahit" ? (
+              <div className="rounded-[18px] border border-[#ead7ce] bg-[#fff8f5] px-5 py-4">
+                <p className="mb-3 text-[13px] font-semibold text-[#6f5a54]">Tipe Payroll Penjahit</p>
+                <div className="flex gap-6">
+                  <label className="flex cursor-pointer items-center gap-2.5">
+                    <input type="radio" name="penjahitPayrollType" value="mingguan" checked={form.penjahitPayrollType === "mingguan"} onChange={() => updateField("penjahitPayrollType", "mingguan")} className="h-4 w-4 accent-[#8f1d22]" />
+                    <span className="text-sm text-[#2d1b18]">Mingguan <span className="text-xs text-[#a16f63]">(bayar tgl 1, 8, 16, 25)</span></span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2.5">
+                    <input type="radio" name="penjahitPayrollType" value="bulanan" checked={form.penjahitPayrollType === "bulanan"} onChange={() => updateField("penjahitPayrollType", "bulanan")} className="h-4 w-4 accent-[#8f1d22]" />
+                    <span className="text-sm text-[#2d1b18]">Bulanan <span className="text-xs text-[#a16f63]">(bayar tgl 25)</span></span>
+                  </label>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -462,12 +525,17 @@ export default function AdminEmployeesManager({ initialEmployees, lookups, stats
                 <Field label="Kenaikan Tiap Tahun"><input value={form.annualRaise} onChange={(event) => updateField("annualRaise", formatRupiahInput(event.target.value))} className={inputClassName} inputMode="numeric" /></Field>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className={`grid gap-4 md:grid-cols-2 ${isTetap ? "" : "xl:grid-cols-3"}`}>
                 <Field label="Tanggal Pertama Masuk"><input type="date" value={form.firstJoinDate} onChange={(event) => updateField("firstJoinDate", event.target.value)} className={inputClassName} required /></Field>
-                <Field label="Tanggal Kontrak"><input type="date" value={form.contractDate} onChange={(event) => updateField("contractDate", event.target.value)} className={inputClassName} disabled={!editingId} /></Field>
-                <Field label="Tanggal Selesai Kontrak"><input type="date" value={form.contractEndDate} onChange={(event) => updateField("contractEndDate", event.target.value)} className={inputClassName} disabled={!editingId} /></Field>
+                {!isTetap && (
+                  <Field label="Tanggal Kontrak"><input type="date" value={form.contractDate} onChange={(event) => updateField("contractDate", event.target.value)} className={inputClassName} disabled={!editingId} /></Field>
+                )}
+                {!isTetap && (
+                  <Field label="Tanggal Selesai Kontrak"><input type="date" value={form.contractEndDate} onChange={(event) => updateField("contractEndDate", event.target.value)} className={inputClassName} disabled={!editingId} /></Field>
+                )}
               </div>
 
+              {!isTetap && (
               <div className="rounded-[28px] border border-[#ead7ce] bg-white/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#a16f63]">Timeline Otomatis</p>
                 <p className="mt-2 text-sm text-[#6f5a54]">
@@ -498,6 +566,7 @@ export default function AdminEmployeesManager({ initialEmployees, lookups, stats
                   </div>
                 </div>
               </div>
+              )}
             </div>
 
             <label className="flex items-center gap-3 rounded-2xl border border-[#ead7ce] bg-white px-4 py-3 text-sm font-medium text-[#5f4a45]">

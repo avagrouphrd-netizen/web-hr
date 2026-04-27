@@ -24,14 +24,20 @@ const menuItems: MenuItem[] = [
   { label: "Dashboard", href: "/admin", description: "Ringkasan panel admin" },
   { label: "Data Karyawan", href: "/admin/employees", description: "Kelola master karyawan" },
   { label: "Absensi", href: "/admin/attendance", description: "Presensi dan keterlambatan" },
+  { label: "Laporan Kunjungan", href: "/admin/visit-reports", description: "Timeline kunjungan Sales Area" },
   { label: "Lembur", href: "/admin/overtime", description: "Approval dan rekap lembur" },
+  { label: "Approval Perjalanan Dinas", href: "/admin/business-trips", description: "Approval dinas luar kota karyawan" },
+  { label: "Approval Reimburse", href: "/admin/reimbursements", description: "Approve nota reimburse" },
   { label: "Pinjaman", href: "/admin/loans", description: "Pinjaman karyawan" },
   { label: "Potongan Kontrak", href: "/admin/contract-deductions", description: "Potongan per bulan" },
   { label: "Summary Payroll", href: "/admin/payroll-summary", description: "Ringkasan payroll" },
+  { label: "Payroll Bonus", href: "/admin/payroll-bonus", description: "Payroll bonus Sales, SPV, Manager, CS, Host Live" },
+  { label: "Summary Sales Nasional", href: "/admin/payroll-summary/sales-nasional", description: "Payroll khusus Sales Nasional" },
+  { label: "Summary Penjahit", href: "/admin/payroll-summary/penjahit", description: "Payroll khusus Penjahit (mingguan & bulanan)" },
   { label: "Finance", href: "/admin/finance", description: "Pembebanan dan pencairan" },
   { label: "Slip Gaji", href: "/admin/payslips", description: "Detail slip gaji" },
   { label: "Distribusi Slip", href: "/admin/payslip-distribution", description: "Log distribusi slip" },
-  { label: "Role", href: "/admin/roles", description: "Kelola akun admin" },
+  { label: "Role", href: "/admin/roles", description: "Kelola akun admin & SPV" },
 ];
 
 function GridIcon({ active }: { active?: boolean }) {

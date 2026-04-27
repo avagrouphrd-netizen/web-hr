@@ -36,6 +36,9 @@ function validatePayload(body: Record<string, unknown>) {
   const role = normalizeText(body.role);
   const subDivision = normalizeText(body.subDivision);
   const placement = normalizeText(body.placement);
+  const extraPlacements = Array.isArray(body.extraPlacements)
+    ? (body.extraPlacements as unknown[]).map((v) => normalizeText(v)).filter((v): v is string => v !== null)
+    : [];
   const division = normalizeText(body.division);
   const department = normalizeText(body.department);
   const costAllocation = normalizeText(body.costAllocation);
@@ -79,6 +82,12 @@ function validatePayload(body: Record<string, unknown>) {
     return { error: "Penempatan tidak valid." };
   }
 
+  for (const ep of extraPlacements) {
+    if (!EMPLOYEE_PLACEMENTS.includes(ep as (typeof EMPLOYEE_PLACEMENTS)[number])) {
+      return { error: `Penempatan tambahan "${ep}" tidak valid.` };
+    }
+  }
+
   if (
     costAllocation &&
     !EMPLOYEE_COST_ALLOCATIONS.includes(costAllocation as (typeof EMPLOYEE_COST_ALLOCATIONS)[number])
@@ -109,6 +118,7 @@ function validatePayload(body: Record<string, unknown>) {
       role: role ?? "",
       subDivision,
       placement,
+      extraPlacements,
       division: division ?? "",
       department: department ?? "",
       recapGroup: null,
@@ -132,6 +142,10 @@ function validatePayload(body: Record<string, unknown>) {
       contractEndDate: normalizeText(body.contractEndDate),
       annualRaise: Number(body.annualRaise ?? 0) || 0,
       userActive: body.userActive === false ? false : true,
+      penjahitPayrollType:
+        body.penjahitPayrollType === "mingguan" || body.penjahitPayrollType === "bulanan"
+          ? (body.penjahitPayrollType as "mingguan" | "bulanan")
+          : null,
     },
   };
 }
@@ -179,30 +193,10 @@ export async function PUT(
       return NextResponse.json({ message: result.error }, { status: 400 });
     }
 
-    const personalFields = [
-      "gender",
-      "birthPlace",
-      "birthDate",
-      "nik",
-      "religion",
-      "addressKtp",
-      "addressCurrent",
-      "phoneNumber",
-      "bank",
-      "accountNumber",
-      "ktpPhoto",
-    ] as const;
-
-    const merged = { ...result.payload };
-    for (const field of personalFields) {
-      if (!(field in body)) {
-        (merged as Record<string, unknown>)[field] = current[field];
-      }
-    }
-
     const employee = await updateEmployee(id, {
-      ...merged,
+      ...result.payload,
       email: current.email,
+      ktpPhoto: result.payload.ktpPhoto ?? current.ktpPhoto,
     });
 
     return NextResponse.json({
