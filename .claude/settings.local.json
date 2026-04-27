@@ -48,7 +48,10 @@
       "Bash(cp /tmp/db-check.cjs D:/web_hr/db-check.cjs)",
       "Bash(rm -f D:/web_hr/db-check.cjs)",
       "Bash(kill %1)",
-      "Bash(pkill -f \"next dev\")"
+      "Bash(pkill -f \"next dev\")",
+      "Bash(mysqldump --version)",
+      "Bash(railway --version)",
+      "Bash(docker --version)"
     ]
   }
 }
