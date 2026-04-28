@@ -498,9 +498,22 @@ async function bootstrapExistingLoanSchedules(connection?: QueryExecutor) {
   }
 }
 
-export async function ensureLoanSupportTables(connection?: QueryExecutor) {
-  const executor = connection ?? pool;
+let loanSupportReady: Promise<void> | null = null;
 
+export async function ensureLoanSupportTables(connection?: QueryExecutor) {
+  if (!connection) {
+    if (!loanSupportReady) {
+      loanSupportReady = doEnsureLoanSupportTables(pool).catch((err) => {
+        loanSupportReady = null;
+        throw err;
+      });
+    }
+    return loanSupportReady;
+  }
+  return doEnsureLoanSupportTables(connection);
+}
+
+async function doEnsureLoanSupportTables(executor: QueryExecutor) {
   try {
     await executor.query(`
       ALTER TABLE pinjaman

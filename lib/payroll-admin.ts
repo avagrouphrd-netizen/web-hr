@@ -287,9 +287,22 @@ function getMysqlErrorCode(error: unknown) {
     : undefined;
 }
 
-export async function ensurePayrollSupportTables(connection?: QueryExecutor) {
-  const executor = connection ?? pool;
+let payrollSupportReady: Promise<void> | null = null;
 
+export async function ensurePayrollSupportTables(connection?: QueryExecutor) {
+  if (!connection) {
+    if (!payrollSupportReady) {
+      payrollSupportReady = doEnsurePayrollSupportTables(pool).catch((err) => {
+        payrollSupportReady = null;
+        throw err;
+      });
+    }
+    return payrollSupportReady;
+  }
+  return doEnsurePayrollSupportTables(connection);
+}
+
+async function doEnsurePayrollSupportTables(executor: QueryExecutor) {
   await executor.query(`
     CREATE TABLE IF NOT EXISTS omzet_bulanan (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
